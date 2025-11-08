@@ -1,39 +1,48 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Hero3D from './components/Hero3D';
+import TopNav from './components/TopNav';
 import AuthPhone from './components/AuthPhone';
 import Dashboard from './components/Dashboard';
 import History from './components/History';
-import TopNav from './components/TopNav';
+import { auth } from './firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 export default function App() {
-  const [user, setUser] = useState(null);
+  const [ready, setReady] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
   const [tab, setTab] = useState('overview');
 
-  const authed = Boolean(user);
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setSignedIn(!!u);
+      setReady(true);
+    });
+    return () => unsub();
+  }, []);
 
   return (
-    <div className="min-h-screen bg-[#111111] text-white">
-      <div className="max-w-5xl mx-auto p-4 sm:p-6 space-y-6">
-        <Hero3D />
+    <div className="min-h-screen bg-[#111111] text-white font-inter">
+      <Hero3D />
 
-        {!authed ? (
-          <div className="flex flex-col items-center gap-4">
-            <p className="text-white/80 text-center">
-              Sign in with your phone to sync income and expenses securely.
-            </p>
-            <AuthPhone onAuthed={(u) => { setUser(u); setTab('overview'); }} />
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="text-white/60 text-sm">Welcome, {user.phoneNumber || 'User'}</div>
-              <TopNav value={tab} onChange={setTab} />
-            </div>
+      <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 pb-20 pt-10">
+        <div className="flex flex-col gap-6">
+          <TopNav tab={tab} setTab={setTab} />
 
-            {tab === 'overview' && <Dashboard user={user} />}
-            {tab === 'history' && <History user={user} />}
+          <div className="flex items-center justify-between bg-black/40 backdrop-blur rounded-xl border border-white/5 px-4 py-3">
+            <div className="text-white/80 text-sm">Phone Authentication</div>
+            <AuthPhone onUser={(v) => setSignedIn(v)} />
           </div>
-        )}
+
+          {!ready ? (
+            <div className="text-white/60">Loading...</div>
+          ) : !signedIn ? (
+            <div className="text-white/70">Sign in to start tracking your balance.</div>
+          ) : tab === 'overview' ? (
+            <Dashboard />
+          ) : (
+            <History />
+          )}
+        </div>
       </div>
     </div>
   );

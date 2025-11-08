@@ -1,139 +1,101 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { auth, RecaptchaVerifier } from '../lib/firebase';
-import { signInWithPhoneNumber, onAuthStateChanged, signOut } from 'firebase/auth';
+import { auth } from '../firebase';
+import { RecaptchaVerifier, signInWithPhoneNumber, onAuthStateChanged, signOut } from 'firebase/auth';
 
-export default function AuthPhone({ onAuthed }) {
+export default function AuthPhone({ onUser }) {
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
-  const [phase, setPhase] = useState('phone'); // 'phone' | 'otp'
-  const confirmationRef = useRef(null);
+  const [confirmation, setConfirmation] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
   const recaptchaRef = useRef(null);
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
-    if (!auth) return;
     const unsub = onAuthStateChanged(auth, (u) => {
-      if (u) onAuthed(u);
+      setUser(u);
+      onUser?.(!!u);
     });
     return () => unsub();
-  }, [onAuthed]);
+  }, [onUser]);
 
-  const setupRecaptcha = () => {
-    if (!auth) return;
-    if (!recaptchaRef.current) {
-      recaptchaRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
+  const ensureRecaptcha = () => {
+    if (!window.recaptchaVerifier) {
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
         size: 'invisible',
       });
     }
-    return recaptchaRef.current;
+    return window.recaptchaVerifier;
   };
 
-  const requestOTP = async (e) => {
+  const startLogin = async (e) => {
     e.preventDefault();
-    setError('');
-    setLoading(true);
     try {
-      const verifier = setupRecaptcha();
-      confirmationRef.current = await signInWithPhoneNumber(auth, phone, verifier);
-      setPhase('otp');
+      setLoading(true);
+      const verifier = ensureRecaptcha();
+      const confirmationResult = await signInWithPhoneNumber(auth, phone, verifier);
+      setConfirmation(confirmationResult);
     } catch (err) {
-      setError(err?.message || 'Failed to send OTP');
+      alert(err.message || 'Failed to send OTP');
     } finally {
       setLoading(false);
     }
   };
 
-  const verifyOTP = async (e) => {
+  const verifyOtp = async (e) => {
     e.preventDefault();
-    setError('');
-    setLoading(true);
+    if (!confirmation) return;
     try {
-      const result = await confirmationRef.current.confirm(otp);
-      onAuthed(result.user);
+      setLoading(true);
+      await confirmation.confirm(otp);
+      setOtp('');
     } catch (err) {
-      setError(err?.message || 'Invalid code');
+      alert(err.message || 'Invalid code');
     } finally {
       setLoading(false);
     }
   };
 
-  if (!auth) {
-    return (
-      <div className="text-white/70 text-sm">Firebase is not configured. Add your VITE_FIREBASE_* env vars.</div>
-    );
-  }
+  const doSignOut = async () => {
+    await signOut(auth);
+    setConfirmation(null);
+  };
 
   return (
-    <div className="bg-[#111111] border border-white/10 rounded-2xl p-6 w-full max-w-md mx-auto">
-      <div id="recaptcha-container" />
+    <div className="w-full">
+      <div id="recaptcha-container" ref={recaptchaRef} />
 
-      {phase === 'phone' && (
-        <form onSubmit={requestOTP} className="space-y-4">
-          <div>
-            <label className="text-white/80 text-sm">Phone Number</label>
+      {!user && (
+        <form onSubmit={confirmation ? verifyOtp : startLogin} className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="e.g. +15555555555"
+            className="flex-1 bg-white/5 text-white placeholder-white/40 rounded-lg px-4 py-2 border border-white/10 focus:outline-none focus:ring-2 focus:ring-white/30"
+          />
+          {confirmation && (
             <input
-              type="tel"
-              className="mt-1 w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-white/40 focus:outline-none"
-              placeholder="+1 555 555 5555"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              required
-            />
-          </div>
-          {error && <div className="text-red-400 text-sm">{error}</div>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-lg px-4 py-2 font-semibold text-[#111111]"
-            style={{ backgroundColor: '#00FFAA' }}
-          >
-            {loading ? 'Sending...' : 'Send OTP'}
-          </button>
-        </form>
-      )}
-
-      {phase === 'otp' && (
-        <form onSubmit={verifyOTP} className="space-y-4">
-          <div>
-            <label className="text-white/80 text-sm">Enter OTP</label>
-            <input
-              type="text"
-              className="mt-1 w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-white/40 focus:outline-none"
-              placeholder="123456"
               value={otp}
               onChange={(e) => setOtp(e.target.value)}
-              required
+              placeholder="Enter OTP"
+              className="flex-1 bg-white/5 text-white placeholder-white/40 rounded-lg px-4 py-2 border border-white/10 focus:outline-none focus:ring-2 focus:ring-white/30"
             />
-          </div>
-          {error && <div className="text-red-400 text-sm">{error}</div>}
+          )}
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg px-4 py-2 font-semibold text-[#111111]"
-            style={{ backgroundColor: '#00FFAA' }}
+            className="px-4 py-2 rounded-lg bg-white text-black font-semibold border border-white disabled:opacity-60"
           >
-            {loading ? 'Verifying...' : 'Verify'}
-          </button>
-          <button
-            type="button"
-            onClick={() => setPhase('phone')}
-            className="w-full rounded-lg px-4 py-2 font-semibold text-[#111111]"
-            style={{ backgroundColor: '#FF5555' }}
-          >
-            Back
+            {confirmation ? (loading ? 'Verifying...' : 'Verify') : (loading ? 'Sending...' : 'Sign in')}
           </button>
         </form>
       )}
 
-      <button
-        type="button"
-        onClick={() => signOut(auth)}
-        className="mt-4 w-full rounded-lg px-4 py-2 font-semibold text-[#111111]"
-        style={{ backgroundColor: '#FF5555' }}
-      >
-        Sign out
-      </button>
+      {user && (
+        <div className="flex items-center gap-3">
+          <div className="text-white/80 text-sm">Signed in as {user.phoneNumber}</div>
+          <button onClick={doSignOut} className="text-sm px-3 py-1.5 rounded-md bg-white/10 text-white hover:bg-white/20 border border-white/10">Sign out</button>
+        </div>
+      )}
     </div>
   );
 }

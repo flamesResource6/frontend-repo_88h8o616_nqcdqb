@@ -1,11 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
-export default function AddEntryModal({
-  open,
-  type = 'income',
-  onClose,
-  onSave,
-}) {
+export default function AddEntryModal({ open, type = 'income', onClose, onSubmit }) {
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
 
@@ -14,62 +9,49 @@ export default function AddEntryModal({
       setAmount('');
       setNote('');
     }
-  }, [open, type]);
+  }, [open]);
 
   if (!open) return null;
 
-  const accent = type === 'income' ? '#00FFAA' : '#FF5555';
-
-  const handleSubmit = (e) => {
+  const submit = (e) => {
     e.preventDefault();
-    const parsed = parseFloat(amount);
-    if (isNaN(parsed) || parsed <= 0) return;
-    onSave({ amount: parsed, note: note.trim(), date: new Date().toISOString() });
-    onClose();
+    const value = parseFloat(amount);
+    if (Number.isNaN(value) || value <= 0) return alert('Enter a valid amount');
+    onSubmit?.({ amount: value, note, createdAt: new Date().toISOString(), type });
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60">
-      <div className="w-full sm:max-w-md bg-[#111111] border border-white/10 rounded-t-2xl sm:rounded-2xl p-6">
-        <div className="flex items-center justify-between">
-          <h3 className="text-white font-semibold text-lg capitalize">Add {type}</h3>
-          <button onClick={onClose} className="text-white/70 hover:text-white text-sm">Close</button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+      <div className="relative w-full max-w-md mx-auto rounded-2xl bg-zinc-900 border border-white/10 p-6 text-white">
+        <div className="text-lg font-semibold mb-4">Add {type === 'income' ? 'Income' : 'Expense'}</div>
+        <form onSubmit={submit} className="space-y-3">
           <div>
-            <label className="text-white/80 text-sm">Amount</label>
+            <label className="block text-sm text-white/70 mb-1">Amount</label>
             <input
               type="number"
               step="0.01"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className="mt-1 w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-white/40 focus:outline-none focus:ring-2"
-              placeholder="0.00"
-              style={{ outlineColor: accent }}
-              required
+              className="w-full bg-white/5 text-white rounded-lg px-3 py-2 border border-white/10 focus:outline-none focus:ring-2 focus:ring-white/30"
             />
           </div>
-
           <div>
-            <label className="text-white/80 text-sm">Note</label>
+            <label className="block text-sm text-white/70 mb-1">Note</label>
             <input
-              type="text"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              className="mt-1 w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-white/40 focus:outline-none focus:ring-2"
-              placeholder="Description"
-              required
+              className="w-full bg-white/5 text-white rounded-lg px-3 py-2 border border-white/10 focus:outline-none focus:ring-2 focus:ring-white/30"
             />
           </div>
-
-          <button
-            type="submit"
-            className="w-full font-medium rounded-lg px-4 py-2"
-            style={{ backgroundColor: accent, color: '#111111' }}
-          >
-            Save {type}
-          </button>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={onClose} className="px-3 py-2 rounded-md bg-white/10 hover:bg-white/20 border border-white/10">
+              Cancel
+            </button>
+            <button type="submit" className="px-4 py-2 rounded-md bg-white text-black font-semibold">
+              Add
+            </button>
+          </div>
         </form>
       </div>
     </div>
